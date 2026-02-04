@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Mini Shooter</title>
+<style>
+body {
+    margin: 0;
+    background: #111;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+.wrapper {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+canvas {
+    background: black;
+    border: 2px solid white;
+}
+
+.panel {
+    width: 260px;
+    background: #000;
+    border: 2px solid red;
+    padding: 10px;
+}
+
+.panel h2 {
+    text-align: center;
+    margin-top: 0;
+}
+
+button, input {
+    width: 100%;
+    padding: 6px;
+    margin-top: 5px;
+    background: #222;
+    color: white;
+    border: 1px solid white;
+}
+
+table {
+    width: 100%;
+    margin-top: 10px;
+    border-collapse: collapse;
+}
+
+td {
+    padding: 4px;
+    font-size: 14px;
+}
+</style>
+</head>
+<body>
+
+<h1 style="text-align:center;">🔫 Mini Shooter</h1>
+
+<div class="wrapper">
+
+<!-- HRA -->
+<div>
+<canvas id="game" width="400" height="600"></canvas>
+<p style="text-align:center;">
+A / D = pohyb • LMB = střelba<br>
+Skóre: <span id="score">0</span> |
+🏆 High Score: <span id="highScore">0</span>
+</p>
+</div>
+
+<!-- LEADERBOARD -->
+<div class="panel">
+<h2>🏆 Leaderboard</h2>
+
+<div id="login">
+<button onclick="login()">Přihlásit se</button>
+</div>
+
+<div id="playerName"></div>
+
+<table id="leaderboard"></table>
+</div>
+
+</div>
+
+<script>
+/* ===== LEADERBOARD ===== */
+let username = localStorage.getItem("ms_name") || "";
+let leaderboard = JSON.parse(localStorage.getItem("ms_leaderboard")) || [];
+
+const leaderboardEl = document.getElementById("leaderboard");
+const playerNameEl = document.getElementById("playerName");
+const loginEl = document.getElementById("login");
+
+function login() {
+    const name = prompt("Zadej své jméno:");
+    if (!name) return;
+    username = name;
+    localStorage.setItem("ms_name", name);
+    updateUI();
+}
+
+function updateLeaderboard(score) {
+    if (!username) return;
+
+    leaderboard.push({ name: username, score });
+    leaderboard.sort((a,b) => b.score - a.score);
+    leaderboard = leaderboard.slice(0,10);
+
+    localStorage.setItem("ms_leaderboard", JSON.stringify(leaderboard));
+    renderLeaderboard();
+}
+
+function renderLeaderboard() {
+    leaderboardEl.innerHTML = "";
+    leaderboard.forEach((p, i) => {
+        leaderboardEl.innerHTML += `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
+    });
+}
+
+function updateUI() {
+    if (username) {
+        loginEl.style.display = "none";
+        playerNameEl.innerHTML = `Přihlášen: <b>${username}</b>`;
+    }
+}
+
+updateUI();
+renderLeaderboard();
+
+/* ===== HRA ===== */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const highScoreEl = document.getElementById("highScore");
+
+let highScore = localStorage.getItem("ms_high") || 0;
+highScoreEl.textContent = highScore;
+
+let score = 0;
+let lives = 20;
+let gameOver = false;
+
+const player = { x:180, y:520, w:40, h:40, s:8 };
+let bullets = [];
+let enemies = [];
+let keys = {};
+let timer = 0;
+
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+canvas.addEventListener("mousedown", e => {
+    if (gameOver) restart();
+    else if (e.button === 0)
+        bullets.push({ x:player.x+18, y:player.y, s:10 });
+});
+
+function restart() {
+    gameOver = false;
+    score = 0;
+    lives = 20;
+    bullets = [];
+    enemies = [];
+    timer = 0;
+}
+
+function spawn() {
+    enemies.push({ x:Math.random()*360, y:-40, s:1 });
+}
+
+function update() {
+    if (gameOver) return;
+
+    if (keys["a"] && player.x>0) player.x-=player.s;
+    if (keys["d"] && player.x<360) player.x+=player.s;
+
+    bullets.forEach(b=>b.y-=b.s);
+    bullets = bullets.filter(b=>b.y>-10);
+
+    enemies.forEach(e=>e.y+=e.s);
+
+    timer++;
+    if (timer>180){ spawn(); timer=0; }
+
+    enemies.forEach((e,ei)=>{
+        if (
+            e.x<player.x+40 && e.x+40>player.x &&
+            e.y<player.y+40 && e.y+40>player.y
+        ){
+            enemies.splice(ei,1);
+            lives--;
+        }
+
+        bullets.forEach((b,bi)=>{
+            if (
+                b.x<e.x+40 && b.x+4>e.x &&
+                b.y<e.y+40 && b.y+10>e.y
+            ){
+                enemies.splice(ei,1);
+                bullets.splice(bi,1);
+                score++;
+                scoreEl.textContent=score;
+            }
+        });
+
+        if (e.y>600){
+            enemies.splice(ei,1);
+            lives--;
+        }
+    });
+
+    if (lives<=0){
+        gameOver=true;
+        if (score>highScore){
+            highScore=score;
+            localStorage.setItem("ms_high",highScore);
+            highScoreEl.textContent=highScore;
+        }
+        updateLeaderboard(score);
+    }
+}
+
+function draw() {
+    ctx.clearRect(0,0,400,600);
+
+    ctx.fillStyle="lime";
+    ctx.fillRect(player.x,player.y,40,40);
+
+    ctx.fillStyle="yellow";
+    bullets.forEach(b=>ctx.fillRect(b.x,b.y,4,10));
+
+    ctx.fillStyle="red";
+    enemies.forEach(e=>ctx.fillRect(e.x,e.y,40,40));
+
+    ctx.fillStyle="white";
+    ctx.textAlign="right";
+    ctx.fillText(`❤️ ${lives}/20`,390,20);
+
+    if (gameOver){
+        ctx.fillStyle="rgba(0,0,0,.7)";
+        ctx.fillRect(60,200,280,200);
+        ctx.strokeStyle="white";
+        ctx.strokeRect(60,200,280,200);
+        ctx.fillStyle="white";
+        ctx.textAlign="center";
+        ctx.font="28px Arial";
+        ctx.fillText("GAME OVER",200,250);
+        ctx.font="16px Arial";
+        ctx.fillText("Klikni pro restart",200,300);
+    }
+}
+
+function loop(){
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
