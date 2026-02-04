@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Mini Shooter</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <!-- 🔥 FIREBASE SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -38,11 +39,13 @@ body {
   justify-content: center;
   gap: 20px;
   margin-top: 20px;
+  flex-wrap: wrap;
 }
 
 canvas {
   background: black;
   border: 2px solid white;
+  touch-action: none;
 }
 
 .panel {
@@ -50,10 +53,6 @@ canvas {
   background: #000;
   border: 2px solid red;
   padding: 10px;
-}
-
-.panel h2 {
-  margin-top: 0;
 }
 
 button {
@@ -87,17 +86,15 @@ td {
   <!-- 🎮 HRA -->
   <div>
     <canvas id="game" width="400" height="600"></canvas>
-    <p>A / D = pohyb • LMB = střelba</p>
+    <p>A / D nebo 📱 dotyk • klik / tap = střelba</p>
     <p>Skóre: <span id="score">0</span></p>
   </div>
 
   <!-- 🏆 LEADERBOARD -->
   <div class="panel">
     <h2>🏆 Global Leaderboard</h2>
-
     <button onclick="login()">Přihlásit se</button>
     <p id="playerName"></p>
-
     <table id="leaderboard"></table>
   </div>
 
@@ -106,7 +103,6 @@ td {
 <script>
 /* ===== LEADERBOARD ===== */
 let username = localStorage.getItem("ms_name") || "";
-
 const leaderboardEl = document.getElementById("leaderboard");
 const playerNameEl = document.getElementById("playerName");
 
@@ -124,10 +120,9 @@ if (username) {
 
 function saveGlobalScore(name, score) {
   if (!name) return;
-
   db.ref("leaderboard").push({
-    name: name,
-    score: score,
+    name,
+    score,
     time: Date.now()
   });
 }
@@ -136,20 +131,17 @@ function loadGlobalLeaderboard() {
   db.ref("leaderboard")
     .orderByChild("score")
     .limitToLast(10)
-    .on("value", snapshot => {
-      const data = snapshot.val();
+    .on("value", snap => {
       leaderboardEl.innerHTML = "";
-
-      if (!data) return;
-
-      const arr = Object.values(data).sort((a,b)=>b.score-a.score);
-      arr.forEach((p,i)=>{
-        leaderboardEl.innerHTML +=
-          `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
-      });
+      if (!snap.val()) return;
+      Object.values(snap.val())
+        .sort((a,b)=>b.score-a.score)
+        .forEach((p,i)=>{
+          leaderboardEl.innerHTML +=
+            `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
+        });
     });
 }
-
 loadGlobalLeaderboard();
 
 /* ===== HRA ===== */
@@ -167,21 +159,45 @@ let enemies = [];
 let keys = {};
 let timer = 0;
 
+// 📱 TOUCH
+let touchLeft = false;
+let touchRight = false;
+
+// ⌨️ KLÁVESNICE
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
+// 🖱️ MYŠ
 canvas.addEventListener("mousedown", e => {
   if (gameOver) restart();
   else if (e.button === 0)
     bullets.push({ x:player.x+18, y:player.y, s:10 });
 });
 
+// 📱 DOTYK
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault();
+  const x = e.touches[0].clientX;
+  const half = window.innerWidth / 2;
+
+  if (gameOver) restart();
+  else bullets.push({ x:player.x+18, y:player.y, s:10 });
+
+  touchLeft = x < half;
+  touchRight = x >= half;
+},{passive:false});
+
+canvas.addEventListener("touchend", () => {
+  touchLeft = false;
+  touchRight = false;
+});
+
 function restart() {
-  gameOver = false;
   score = 0;
   lives = 20;
   bullets = [];
   enemies = [];
+  gameOver = false;
   scoreEl.textContent = score;
 }
 
@@ -192,8 +208,8 @@ function spawn() {
 function update() {
   if (gameOver) return;
 
-  if (keys["a"] && player.x>0) player.x-=player.s;
-  if (keys["d"] && player.x<360) player.x+=player.s;
+  if ((keys["a"] || touchLeft) && player.x>0) player.x -= player.s;
+  if ((keys["d"] || touchRight) && player.x<360) player.x += player.s;
 
   bullets.forEach(b=>b.y-=b.s);
   bullets = bullets.filter(b=>b.y>-10);
@@ -262,7 +278,7 @@ function draw() {
     ctx.font="28px Arial";
     ctx.fillText("GAME OVER",200,250);
     ctx.font="16px Arial";
-    ctx.fillText("Klikni pro restart",200,300);
+    ctx.fillText("Tap / klik pro restart",200,300);
   }
 }
 
