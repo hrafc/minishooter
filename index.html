@@ -5,7 +5,7 @@
 <title>Mini Shooter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<!-- 🔥 FIREBASE SDK -->
+<!-- FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -36,7 +36,6 @@ body {
   font-family: Arial, sans-serif;
   text-align: center;
 }
-
 .wrapper {
   display: flex;
   justify-content: center;
@@ -44,23 +43,19 @@ body {
   margin-top: 20px;
   flex-wrap: wrap;
 }
-
 canvas {
   background: black;
   border: 2px solid white;
-  touch-action: none;
 }
-
 .panel {
   width: 260px;
   background: #000;
   border: 2px solid red;
   padding: 10px;
 }
-
 button {
   width: 100%;
-  padding: 6px;
+  padding: 8px;
   background: #222;
   color: white;
   border: 1px solid white;
@@ -91,15 +86,14 @@ button {
 </div>
 
 <script>
-/* ================= AUTH ================= */
-
+/* ===== LOGIN ===== */
 const loginBtn = document.getElementById("loginBtn");
 const playerInfo = document.getElementById("playerInfo");
 const leaderboardEl = document.getElementById("leaderboard");
 
-loginBtn.addEventListener("click", () => {
+loginBtn.onclick = () => {
   auth.signInWithRedirect(provider);
-});
+};
 
 auth.getRedirectResult().catch(err => {
   console.error("Redirect error:", err);
@@ -116,8 +110,7 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-/* ================= LEADERBOARD ================= */
-
+/* ===== LEADERBOARD ===== */
 function saveScore(score) {
   const user = auth.currentUser;
   if (!user) return;
@@ -126,10 +119,7 @@ function saveScore(score) {
   ref.get().then(snap => {
     const best = snap.exists() ? snap.val().score : 0;
     if (score > best) {
-      ref.set({
-        name: user.displayName,
-        score: score
-      });
+      ref.set({ name: user.displayName, score });
     }
   });
 }
@@ -141,7 +131,6 @@ function loadLeaderboard() {
     .on("value", snap => {
       leaderboardEl.innerHTML = "";
       if (!snap.val()) return;
-
       Object.values(snap.val())
         .sort((a,b)=>b.score-a.score)
         .forEach((p,i)=>{
@@ -150,8 +139,7 @@ function loadLeaderboard() {
     });
 }
 
-/* ================= GAME ================= */
-
+/* ===== GAME ===== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
@@ -160,7 +148,8 @@ let score = 0;
 let lives = 20;
 let gameOver = false;
 
-const player = { x:180, y:520, w:40, h:40, s:6 };
+// 🔥 OPRAVA RYCHLOSTÍ
+const player = { x:180, y:520, w:40, h:40, s:10 }; // BYLO 6
 let bullets = [];
 let enemies = [];
 let timer = 0;
@@ -172,7 +161,7 @@ document.addEventListener("keydown", e => {
 
 canvas.addEventListener("mousedown", () => {
   if (gameOver) restart();
-  else bullets.push({ x:player.x+18, y:player.y, s:10 });
+  else bullets.push({ x:player.x+18, y:player.y, s:12 });
 });
 
 function restart() {
@@ -185,7 +174,11 @@ function restart() {
 }
 
 function spawnEnemy() {
-  enemies.push({ x:Math.random()*360, y:-40, s:1.5 });
+  enemies.push({
+    x: Math.random()*360,
+    y: -40,
+    s: 0.8   // 🔥 BYLO 1.5 → ZPOMALENO
+  });
 }
 
 function update() {
@@ -197,17 +190,12 @@ function update() {
   enemies.forEach(e=>e.y+=e.s);
 
   timer++;
-  if (timer>120){ spawnEnemy(); timer=0; }
+  if (timer > 180) { // 🔥 pomalejší spawn
+    spawnEnemy();
+    timer = 0;
+  }
 
   enemies.forEach((e,ei)=>{
-    if (
-      e.x<player.x+40 && e.x+40>player.x &&
-      e.y<player.y+40 && e.y+40>player.y
-    ){
-      enemies.splice(ei,1);
-      lives--;
-    }
-
     bullets.forEach((b,bi)=>{
       if (
         b.x<e.x+40 && b.x+4>e.x &&
@@ -216,18 +204,18 @@ function update() {
         enemies.splice(ei,1);
         bullets.splice(bi,1);
         score++;
-        scoreEl.textContent=score;
+        scoreEl.textContent = score;
       }
     });
 
-    if (e.y>600){
+    if (e.y > 600){
       enemies.splice(ei,1);
       lives--;
     }
   });
 
-  if (lives<=0){
-    gameOver=true;
+  if (lives <= 0){
+    gameOver = true;
     saveScore(score);
   }
 }
