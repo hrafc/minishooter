@@ -5,11 +5,9 @@
 <title>Mini Shooter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<!-- 🔥 FIREBASE SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-<!-- 🔥 FIREBASE CONFIG -->
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyC1FhFMFEFChjENC3gp8fPM-06jKSn86w",
@@ -83,17 +81,15 @@ td {
 
 <div class="wrapper">
 
-  <!-- 🎮 HRA -->
   <div>
     <canvas id="game" width="400" height="600"></canvas>
     <p>A / D nebo 📱 dotyk • klik / tap = střelba</p>
     <p>Skóre: <span id="score">0</span></p>
   </div>
 
-  <!-- 🏆 LEADERBOARD -->
   <div class="panel">
     <h2>🏆 Global Leaderboard</h2>
-    <button onclick="login()">Přihlásit se</button>
+    <button id="loginBtn" onclick="login()">Přihlásit se</button>
     <p id="playerName"></p>
     <table id="leaderboard"></table>
   </div>
@@ -105,17 +101,22 @@ td {
 let username = localStorage.getItem("ms_name") || "";
 const leaderboardEl = document.getElementById("leaderboard");
 const playerNameEl = document.getElementById("playerName");
+const loginBtn = document.getElementById("loginBtn");
 
 function login() {
   const name = prompt("Zadej své jméno:");
   if (!name) return;
+
   username = name;
   localStorage.setItem("ms_name", name);
-  playerNameEl.textContent = "Přihlášen: " + name;
+
+  playerNameEl.textContent = "Přihlášeno";
+  loginBtn.style.display = "none";
 }
 
 if (username) {
-  playerNameEl.textContent = "Přihlášen: " + username;
+  playerNameEl.textContent = "Přihlášeno";
+  loginBtn.style.display = "none";
 }
 
 function saveGlobalScore(name, score) {
@@ -144,7 +145,7 @@ function loadGlobalLeaderboard() {
 }
 loadGlobalLeaderboard();
 
-/* ===== HRA ===== */
+/* ===== HRA – BEZE ZMĚN ===== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
@@ -159,22 +160,18 @@ let enemies = [];
 let keys = {};
 let timer = 0;
 
-// 📱 TOUCH
 let touchLeft = false;
 let touchRight = false;
 
-// ⌨️ KLÁVESNICE
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-// 🖱️ MYŠ
 canvas.addEventListener("mousedown", e => {
   if (gameOver) restart();
   else if (e.button === 0)
     bullets.push({ x:player.x+18, y:player.y, s:10 });
 });
 
-// 📱 DOTYK
 canvas.addEventListener("touchstart", e => {
   e.preventDefault();
   const x = e.touches[0].clientX;
