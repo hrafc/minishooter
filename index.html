@@ -5,11 +5,11 @@
 <title>Mini Shooter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<!-- 🔥 FIREBASE SDK -->
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-<!-- 🔥 FIREBASE CONFIG -->
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyC1FhFMFEFChjENC3gp8fPM-06jKSn86w",
@@ -23,6 +23,7 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
 </script>
 
 <style>
@@ -45,7 +46,6 @@ body {
 canvas {
   background: black;
   border: 2px solid white;
-  touch-action: none;
 }
 
 .panel {
@@ -72,7 +72,6 @@ table {
 
 td {
   padding: 4px;
-  text-align: left;
 }
 </style>
 </head>
@@ -83,66 +82,75 @@ td {
 
 <div class="wrapper">
 
-  <!-- 🎮 HRA -->
+  <!-- HRA -->
   <div>
     <canvas id="game" width="400" height="600"></canvas>
-    <p>A / D nebo 📱 dotyk • klik / tap = střelba</p>
+    <p>A / D nebo 📱 dotyk • klik = střelba</p>
     <p>Skóre: <span id="score">0</span></p>
   </div>
 
-  <!-- 🏆 LEADERBOARD -->
+  <!-- LEADERBOARD -->
   <div class="panel">
     <h2>🏆 Global Leaderboard</h2>
-    <button onclick="login()">Přihlásit se</button>
-    <p id="playerName"></p>
+    <button id="loginBtn">Přihlásit se přes Google</button>
+    <p id="authStatus">Nepřihlášen</p>
     <table id="leaderboard"></table>
   </div>
 
 </div>
 
 <script>
+/* ===== AUTH ===== */
+const loginBtn = document.getElementById("loginBtn");
+const authStatus = document.getElementById("authStatus");
+const provider = new firebase.auth.GoogleAuthProvider();
+
+loginBtn.onclick = () => {
+  auth.signInWithRedirect(provider);
+};
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    authStatus.textContent = "Přihlášen: " + user.displayName;
+    loginBtn.style.display = "none";
+  } else {
+    authStatus.textContent = "Nepřihlášen";
+    loginBtn.style.display = "block";
+  }
+});
+
 /* ===== LEADERBOARD ===== */
-let username = localStorage.getItem("ms_name") || "";
 const leaderboardEl = document.getElementById("leaderboard");
-const playerNameEl = document.getElementById("playerName");
 
-function login() {
-  const name = prompt("Zadej své jméno:");
-  if (!name) return;
-  username = name;
-  localStorage.setItem("ms_name", name);
-  playerNameEl.textContent = "Přihlášen: " + name;
-}
+function saveScore(score) {
+  const user = auth.currentUser;
+  if (!user) return;
 
-if (username) {
-  playerNameEl.textContent = "Přihlášen: " + username;
-}
-
-function saveGlobalScore(name, score) {
-  if (!name) return;
-  db.ref("leaderboard").push({
-    name,
-    score,
-    time: Date.now()
+  const ref = db.ref("leaderboard/" + user.uid);
+  ref.get().then(snap => {
+    if (!snap.exists() || score > snap.val().score) {
+      ref.set({
+        name: user.displayName,
+        score: score
+      });
+    }
   });
 }
 
-function loadGlobalLeaderboard() {
-  db.ref("leaderboard")
-    .orderByChild("score")
-    .limitToLast(10)
-    .on("value", snap => {
-      leaderboardEl.innerHTML = "";
-      if (!snap.val()) return;
-      Object.values(snap.val())
-        .sort((a,b)=>b.score-a.score)
-        .forEach((p,i)=>{
-          leaderboardEl.innerHTML +=
-            `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
-        });
-    });
-}
-loadGlobalLeaderboard();
+db.ref("leaderboard")
+  .orderByChild("score")
+  .limitToLast(10)
+  .on("value", snap => {
+    leaderboardEl.innerHTML = "";
+    if (!snap.exists()) return;
+
+    Object.values(snap.val())
+      .sort((a,b)=>b.score-a.score)
+      .forEach((p,i)=>{
+        leaderboardEl.innerHTML +=
+          `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
+      });
+  });
 
 /* ===== HRA ===== */
 const canvas = document.getElementById("game");
@@ -153,43 +161,18 @@ let score = 0;
 let lives = 20;
 let gameOver = false;
 
-const player = { x:180, y:520, w:40, h:40, s:8 };
+const player = { x:180, y:520, s:8 };
 let bullets = [];
 let enemies = [];
 let keys = {};
 let timer = 0;
 
-// 📱 TOUCH
-let touchLeft = false;
-let touchRight = false;
-
-// ⌨️ KLÁVESNICE
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-// 🖱️ MYŠ
-canvas.addEventListener("mousedown", e => {
-  if (gameOver) restart();
-  else if (e.button === 0)
-    bullets.push({ x:player.x+18, y:player.y, s:10 });
-});
-
-// 📱 DOTYK
-canvas.addEventListener("touchstart", e => {
-  e.preventDefault();
-  const x = e.touches[0].clientX;
-  const half = window.innerWidth / 2;
-
+canvas.addEventListener("mousedown", () => {
   if (gameOver) restart();
   else bullets.push({ x:player.x+18, y:player.y, s:10 });
-
-  touchLeft = x < half;
-  touchRight = x >= half;
-},{passive:false});
-
-canvas.addEventListener("touchend", () => {
-  touchLeft = false;
-  touchRight = false;
 });
 
 function restart() {
@@ -208,8 +191,8 @@ function spawn() {
 function update() {
   if (gameOver) return;
 
-  if ((keys["a"] || touchLeft) && player.x>0) player.x -= player.s;
-  if ((keys["d"] || touchRight) && player.x<360) player.x += player.s;
+  if (keys["a"] && player.x>0) player.x -= player.s;
+  if (keys["d"] && player.x<360) player.x += player.s;
 
   bullets.forEach(b=>b.y-=b.s);
   bullets = bullets.filter(b=>b.y>-10);
@@ -220,19 +203,8 @@ function update() {
   if (timer>180){ spawn(); timer=0; }
 
   enemies.forEach((e,ei)=>{
-    if (
-      e.x<player.x+40 && e.x+40>player.x &&
-      e.y<player.y+40 && e.y+40>player.y
-    ){
-      enemies.splice(ei,1);
-      lives--;
-    }
-
     bullets.forEach((b,bi)=>{
-      if (
-        b.x<e.x+40 && b.x+4>e.x &&
-        b.y<e.y+40 && b.y+10>e.y
-      ){
+      if (b.x<e.x+40 && b.x+4>e.x && b.y<e.y+40 && b.y+10>e.y) {
         enemies.splice(ei,1);
         bullets.splice(bi,1);
         score++;
@@ -248,38 +220,18 @@ function update() {
 
   if (lives<=0){
     gameOver=true;
-    saveGlobalScore(username, score);
+    saveScore(score);
   }
 }
 
 function draw() {
   ctx.clearRect(0,0,400,600);
-
   ctx.fillStyle="lime";
-  ctx.fillRect(player.x,player.y,40,40);
-
+  ctx.fillRect(player.x,520,40,40);
   ctx.fillStyle="yellow";
   bullets.forEach(b=>ctx.fillRect(b.x,b.y,4,10));
-
   ctx.fillStyle="red";
   enemies.forEach(e=>ctx.fillRect(e.x,e.y,40,40));
-
-  ctx.fillStyle="white";
-  ctx.textAlign="right";
-  ctx.fillText(`❤️ ${lives}/20`,390,20);
-
-  if (gameOver){
-    ctx.fillStyle="rgba(0,0,0,.7)";
-    ctx.fillRect(60,200,280,200);
-    ctx.strokeStyle="white";
-    ctx.strokeRect(60,200,280,200);
-    ctx.fillStyle="white";
-    ctx.textAlign="center";
-    ctx.font="28px Arial";
-    ctx.fillText("GAME OVER",200,250);
-    ctx.font="16px Arial";
-    ctx.fillText("Tap / klik pro restart",200,300);
-  }
 }
 
 function loop(){
