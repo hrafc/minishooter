@@ -108,7 +108,7 @@ const loginBtn = document.getElementById("loginBtn");
 const authStatus = document.getElementById("authStatus");
 
 loginBtn.onclick = () => {
-  auth.signInWithPopup(provider).catch(err => {
+  auth.signInWithRedirect(provider);.catch(err => {
     alert("Přihlášení selhalo");
     console.error(err);
   });
@@ -305,3 +305,4 @@ loop();
 
 </body>
 </html>
+
