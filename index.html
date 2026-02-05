@@ -12,7 +12,7 @@
 
 <script>
 const firebaseConfig = {
-  apiKey: "AIzaSyC1FhFMFEFChjENC3gp8fPM-06jKSn86w",
+  apiKey: "AIzaSyC1FhFMFEFChjENC3gp8fPM-06jKSN86w",
   authDomain: "minishooter.firebaseapp.com",
   databaseURL: "https://minishooter-default-rtdb.firebaseio.com",
   projectId: "minishooter",
@@ -106,12 +106,14 @@ const playerNameEl = document.getElementById("playerName");
 
 function login() {
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(e=>alert(e.message));
+  auth.signInWithPopup(provider).catch(e => alert(e.message));
 }
 
-auth.onAuthStateChanged(u=>{
+auth.onAuthStateChanged(u => {
   user = u;
-  playerNameEl.textContent = u ? "Přihlášen: " + u.displayName : "Nepřihlášen";
+  playerNameEl.textContent = u
+    ? "Přihlášen: " + u.displayName
+    : "Nepřihlášen";
 });
 
 /* ===== LEADERBOARD ===== */
@@ -121,7 +123,7 @@ function saveGlobalScore(score) {
   if (!user) return;
 
   const ref = db.ref("leaderboard/" + user.uid);
-  ref.get().then(snap=>{
+  ref.get().then(snap => {
     if (!snap.exists() || score > snap.val().score) {
       ref.set({
         name: user.displayName,
@@ -135,15 +137,15 @@ function loadGlobalLeaderboard() {
   db.ref("leaderboard")
     .orderByChild("score")
     .limitToLast(10)
-    .on("value", snap=>{
+    .on("value", snap => {
       leaderboardEl.innerHTML = "";
       if (!snap.val()) return;
 
       Object.values(snap.val())
-        .sort((a,b)=>b.score-a.score)
-        .forEach((p,i)=>{
+        .sort((a, b) => b.score - a.score)
+        .forEach((p, i) => {
           leaderboardEl.innerHTML +=
-            `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
+            `<tr><td>${i + 1}. ${p.name} (${p.score})</td></tr>`;
         });
     });
 }
@@ -158,91 +160,119 @@ let score = 0;
 let lives = 20;
 let gameOver = false;
 
-const player = { x:180, y:520, s:8 };
+const player = { x: 180, y: 520, s: 8 };
 let bullets = [];
 let enemies = [];
 let keys = {};
 let timer = 0;
 let touchLeft = false, touchRight = false;
 
-document.addEventListener("keydown", e=>keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e=>keys[e.key.toLowerCase()] = false);
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-canvas.addEventListener("mousedown", ()=>{
-  gameOver ? restart() : bullets.push({x:player.x+18,y:player.y});
+canvas.addEventListener("mousedown", () => {
+  gameOver ? restart() : bullets.push({ x: player.x + 18, y: player.y });
 });
 
-canvas.addEventListener("touchstart", e=>{
+canvas.addEventListener("touchstart", e => {
   e.preventDefault();
   const x = e.touches[0].clientX;
-  x < window.innerWidth/2 ? touchLeft=true : touchRight=true;
-  gameOver ? restart() : bullets.push({x:player.x+18,y:player.y});
-},{passive:false});
+  x < window.innerWidth / 2 ? touchLeft = true : touchRight = true;
+  gameOver ? restart() : bullets.push({ x: player.x + 18, y: player.y });
+}, { passive: false });
 
-canvas.addEventListener("touchend", ()=>touchLeft=touchRight=false);
+canvas.addEventListener("touchend", () => touchLeft = touchRight = false);
 
-function restart(){
-  score=0; lives=20; gameOver=false;
-  bullets=[]; enemies=[];
-  scoreEl.textContent=0;
+function restart() {
+  score = 0;
+  lives = 20;
+  gameOver = false;
+  bullets = [];
+  enemies = [];
+  scoreEl.textContent = 0;
 }
 
-function spawn(){
-  enemies.push({x:Math.random()*360,y:-40});
+function spawn() {
+  enemies.push({ x: Math.random() * 360, y: -40 });
 }
 
-function update(){
-  if(gameOver) return;
+function update() {
+  if (gameOver) return;
 
-  if((keys.a||touchLeft)&&player.x>0) player.x-=player.s;
-  if((keys.d||touchRight)&&player.x<360) player.x+=player.s;
+  if ((keys.a || touchLeft) && player.x > 0) player.x -= player.s;
+  if ((keys.d || touchRight) && player.x < 360) player.x += player.s;
 
-  bullets.forEach(b=>b.y-=10);
-  bullets=bullets.filter(b=>b.y>-10);
+  bullets.forEach(b => b.y -= 10);
+  bullets = bullets.filter(b => b.y > -10);
 
-  enemies.forEach(e=>e.y+=1);
+  enemies.forEach(e => e.y += 1);
 
-  if(++timer>180){spawn();timer=0;}
+  if (++timer > 180) { spawn(); timer = 0; }
 
-  enemies.forEach((e,ei)=>{
-    if(e.y>600){enemies.splice(ei,1);lives--;}
-    bullets.forEach((b,bi)=>{
-      if(b.x<e.x+40&&b.x+4>e.x&&b.y<e.y+40&&b.y+10>e.y){
-        enemies.splice(ei,1);
-        bullets.splice(bi,1);
-        score++; scoreEl.textContent=score;
+  enemies.forEach((e, ei) => {
+    if (e.y > 600) { enemies.splice(ei, 1); lives--; }
+
+    bullets.forEach((b, bi) => {
+      if (
+        b.x < e.x + 40 && b.x + 4 > e.x &&
+        b.y < e.y + 40 && b.y + 10 > e.y
+      ) {
+        enemies.splice(ei, 1);
+        bullets.splice(bi, 1);
+        score++;
+        scoreEl.textContent = score;
       }
     });
-    if(e.x<player.x+40&&e.x+40>player.x&&e.y<player.y+40&&e.y+40>player.y){
-      enemies.splice(ei,1); lives--;
+
+    if (
+      e.x < player.x + 40 && e.x + 40 > player.x &&
+      e.y < player.y + 40 && e.y + 40 > player.y
+    ) {
+      enemies.splice(ei, 1);
+      lives--;
     }
   });
 
-  if(lives<=0){gameOver=true; saveGlobalScore(score);}
-}
-
-function draw(){
-  ctx.clearRect(0,0,400,600);
-  ctx.fillStyle="lime"; ctx.fillRect(player.x,player.y,40,40);
-  ctx.fillStyle="yellow"; bullets.forEach(b=>ctx.fillRect(b.x,b.y,4,10));
-  ctx.fillStyle="red"; enemies.forEach(e=>ctx.fillRect(e.x,e.y,40,40));
-  ctx.fillStyle="white"; ctx.fillText("❤️ "+lives+"/20",320,20);
-
-  if(gameOver){
-    ctx.fillStyle="rgba(0,0,0,.7)";
-    ctx.fillRect(60,200,280,200);
-    ctx.strokeStyle="white";
-    ctx.strokeRect(60,200,280,200);
-    ctx.fillStyle="white";
-    ctx.textAlign="center";
-    ctx.font="28px Arial";
-    ctx.fillText("GAME OVER",200,260);
-    ctx.font="16px Arial";
-    ctx.fillText("Klik / tap pro restart",200,300);
+  if (lives <= 0) {
+    gameOver = true;
+    saveGlobalScore(score);
   }
 }
 
-(function loop(){update();draw();requestAnimationFrame(loop);})();
+function draw() {
+  ctx.clearRect(0, 0, 400, 600);
+
+  ctx.fillStyle = "lime";
+  ctx.fillRect(player.x, player.y, 40, 40);
+
+  ctx.fillStyle = "yellow";
+  bullets.forEach(b => ctx.fillRect(b.x, b.y, 4, 10));
+
+  ctx.fillStyle = "red";
+  enemies.forEach(e => ctx.fillRect(e.x, e.y, 40, 40));
+
+  ctx.fillStyle = "white";
+  ctx.fillText("❤️ " + lives + "/20", 320, 20);
+
+  if (gameOver) {
+    ctx.fillStyle = "rgba(0,0,0,.7)";
+    ctx.fillRect(60, 200, 280, 200);
+    ctx.strokeStyle = "white";
+    ctx.strokeRect(60, 200, 280, 200);
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.font = "28px Arial";
+    ctx.fillText("GAME OVER", 200, 260);
+    ctx.font = "16px Arial";
+    ctx.fillText("Klik / tap pro restart", 200, 300);
+  }
+}
+
+(function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+})();
 </script>
 
 </body>
