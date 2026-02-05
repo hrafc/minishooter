@@ -7,6 +7,7 @@
 
 <!-- 🔥 FIREBASE SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
@@ -21,7 +22,9 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 const db = firebase.database();
+const provider = new firebase.auth.GoogleAuthProvider();
 </script>
 
 <style>
@@ -92,7 +95,7 @@ td {
   <!-- 🏆 LEADERBOARD -->
   <div class="panel">
     <h2>🏆 Global Leaderboard</h2>
-    <button id="loginBtn" onclick="login()">Přihlásit se</button>
+    <button id="loginBtn">Přihlásit se přes Google</button>
     <p id="playerName"></p>
     <table id="leaderboard"></table>
   </div>
@@ -100,61 +103,59 @@ td {
 </div>
 
 <script>
-/* ===== LEADERBOARD / LOGIN ===== */
-const leaderboardEl = document.getElementById("leaderboard");
-const playerNameEl = document.getElementById("playerName");
+/* ===== AUTH UI ===== */
 const loginBtn = document.getElementById("loginBtn");
+const playerNameEl = document.getElementById("playerName");
+const leaderboardEl = document.getElementById("leaderboard");
 
-let username = localStorage.getItem("ms_name");
+loginBtn.onclick = () => {
+  auth.signInWithPopup(provider).catch(err => {
+    alert("Přihlášení selhalo");
+    console.error(err);
+  });
+};
 
-function updateLoginUI() {
-  if (username && username.trim() !== "") {
-    playerNameEl.textContent = "Přihlášeno";
+auth.onAuthStateChanged(user => {
+  if (user) {
+    playerNameEl.textContent = "Přihlášen: " + user.displayName;
     loginBtn.style.display = "none";
   } else {
     playerNameEl.textContent = "";
     loginBtn.style.display = "block";
-    username = "";
   }
-}
+});
 
-function login() {
-  const name = prompt("Zadej své jméno:");
-  if (!name || name.trim() === "") return;
+/* ===== LEADERBOARD ===== */
+function saveGlobalScore(score) {
+  const user = auth.currentUser;
+  if (!user) return;
 
-  username = name.trim();
-  localStorage.setItem("ms_name", username);
-  updateLoginUI();
-}
-
-updateLoginUI();
-
-function saveGlobalScore(name, score) {
-  if (!name) return;
-  db.ref("leaderboard").push({
-    name,
-    score,
-    time: Date.now()
+  const ref = db.ref("leaderboard/" + user.uid);
+  ref.once("value").then(snap => {
+    const old = snap.val();
+    if (!old || score > old.score) {
+      ref.set({
+        name: user.displayName,
+        score: score
+      });
+    }
   });
 }
 
-function loadGlobalLeaderboard() {
-  db.ref("leaderboard")
-    .orderByChild("score")
-    .limitToLast(10)
-    .on("value", snap => {
-      leaderboardEl.innerHTML = "";
-      if (!snap.val()) return;
+db.ref("leaderboard")
+  .orderByChild("score")
+  .limitToLast(10)
+  .on("value", snap => {
+    leaderboardEl.innerHTML = "";
+    if (!snap.val()) return;
 
-      Object.values(snap.val())
-        .sort((a,b)=>b.score-a.score)
-        .forEach((p,i)=>{
-          leaderboardEl.innerHTML +=
-            `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
-        });
-    });
-}
-loadGlobalLeaderboard();
+    Object.values(snap.val())
+      .sort((a,b)=>b.score-a.score)
+      .forEach((p,i)=>{
+        leaderboardEl.innerHTML +=
+          `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
+      });
+  });
 
 /* ===== HRA (BEZE ZMĚN) ===== */
 const canvas = document.getElementById("game");
@@ -256,7 +257,7 @@ function update() {
 
   if (lives<=0){
     gameOver=true;
-    saveGlobalScore(username, score);
+    saveGlobalScore(score);
   }
 }
 
