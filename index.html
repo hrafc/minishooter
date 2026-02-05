@@ -5,11 +5,11 @@
 <title>Mini Shooter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<!-- FIREBASE -->
+<!-- 🔥 FIREBASE SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
+<!-- 🔥 FIREBASE CONFIG -->
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyC1FhFMFEFChjENC3gp8fPM-06jKSn86w",
@@ -22,10 +22,7 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-
-const auth = firebase.auth();
 const db = firebase.database();
-const provider = new firebase.auth.GoogleAuthProvider();
 </script>
 
 <style>
@@ -36,6 +33,7 @@ body {
   font-family: Arial, sans-serif;
   text-align: center;
 }
+
 .wrapper {
   display: flex;
   justify-content: center;
@@ -43,23 +41,38 @@ body {
   margin-top: 20px;
   flex-wrap: wrap;
 }
+
 canvas {
   background: black;
   border: 2px solid white;
+  touch-action: none;
 }
+
 .panel {
   width: 260px;
   background: #000;
   border: 2px solid red;
   padding: 10px;
 }
+
 button {
   width: 100%;
-  padding: 8px;
+  padding: 6px;
   background: #222;
   color: white;
   border: 1px solid white;
   cursor: pointer;
+}
+
+table {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+}
+
+td {
+  padding: 4px;
+  text-align: left;
 }
 </style>
 </head>
@@ -70,61 +83,51 @@ button {
 
 <div class="wrapper">
 
+  <!-- 🎮 HRA -->
   <div>
     <canvas id="game" width="400" height="600"></canvas>
     <p>A / D nebo 📱 dotyk • klik / tap = střelba</p>
     <p>Skóre: <span id="score">0</span></p>
   </div>
 
+  <!-- 🏆 LEADERBOARD -->
   <div class="panel">
     <h2>🏆 Global Leaderboard</h2>
-    <button id="loginBtn">Přihlásit se přes Google</button>
-    <p id="playerInfo">Nepřihlášen</p>
-    <div id="leaderboard"></div>
+    <button onclick="login()">Přihlásit se</button>
+    <p id="playerName"></p>
+    <table id="leaderboard"></table>
   </div>
 
 </div>
 
 <script>
-/* ===== LOGIN ===== */
-const loginBtn = document.getElementById("loginBtn");
-const playerInfo = document.getElementById("playerInfo");
-const leaderboardEl = document.getElementById("leaderboard");
-
-loginBtn.onclick = () => {
-  auth.signInWithRedirect(provider);
-};
-
-auth.getRedirectResult().catch(err => {
-  console.error("Redirect error:", err);
-});
-
-auth.onAuthStateChanged(user => {
-  if (user) {
-    loginBtn.style.display = "none";
-    playerInfo.textContent = "Přihlášen: " + user.displayName;
-    loadLeaderboard();
-  } else {
-    loginBtn.style.display = "block";
-    playerInfo.textContent = "Nepřihlášen";
-  }
-});
-
 /* ===== LEADERBOARD ===== */
-function saveScore(score) {
-  const user = auth.currentUser;
-  if (!user) return;
+let username = localStorage.getItem("ms_name") || "";
+const leaderboardEl = document.getElementById("leaderboard");
+const playerNameEl = document.getElementById("playerName");
 
-  const ref = db.ref("leaderboard/" + user.uid);
-  ref.get().then(snap => {
-    const best = snap.exists() ? snap.val().score : 0;
-    if (score > best) {
-      ref.set({ name: user.displayName, score });
-    }
+function login() {
+  const name = prompt("Zadej své jméno:");
+  if (!name) return;
+  username = name;
+  localStorage.setItem("ms_name", name);
+  playerNameEl.textContent = "Přihlášen: " + name;
+}
+
+if (username) {
+  playerNameEl.textContent = "Přihlášen: " + username;
+}
+
+function saveGlobalScore(name, score) {
+  if (!name) return;
+  db.ref("leaderboard").push({
+    name,
+    score,
+    time: Date.now()
   });
 }
 
-function loadLeaderboard() {
+function loadGlobalLeaderboard() {
   db.ref("leaderboard")
     .orderByChild("score")
     .limitToLast(10)
@@ -134,12 +137,14 @@ function loadLeaderboard() {
       Object.values(snap.val())
         .sort((a,b)=>b.score-a.score)
         .forEach((p,i)=>{
-          leaderboardEl.innerHTML += `<div>${i+1}. ${p.name} (${p.score})</div>`;
+          leaderboardEl.innerHTML +=
+            `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
         });
     });
 }
+loadGlobalLeaderboard();
 
-/* ===== GAME ===== */
+/* ===== HRA ===== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
@@ -148,20 +153,43 @@ let score = 0;
 let lives = 20;
 let gameOver = false;
 
-// 🔥 OPRAVA RYCHLOSTÍ
-const player = { x:180, y:520, w:40, h:40, s:10 }; // BYLO 6
+const player = { x:180, y:520, w:40, h:40, s:8 };
 let bullets = [];
 let enemies = [];
+let keys = {};
 let timer = 0;
 
-document.addEventListener("keydown", e => {
-  if (e.key === "a" && player.x > 0) player.x -= player.s;
-  if (e.key === "d" && player.x < 360) player.x += player.s;
+// 📱 TOUCH
+let touchLeft = false;
+let touchRight = false;
+
+// ⌨️ KLÁVESNICE
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+// 🖱️ MYŠ
+canvas.addEventListener("mousedown", e => {
+  if (gameOver) restart();
+  else if (e.button === 0)
+    bullets.push({ x:player.x+18, y:player.y, s:10 });
 });
 
-canvas.addEventListener("mousedown", () => {
+// 📱 DOTYK
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault();
+  const x = e.touches[0].clientX;
+  const half = window.innerWidth / 2;
+
   if (gameOver) restart();
-  else bullets.push({ x:player.x+18, y:player.y, s:12 });
+  else bullets.push({ x:player.x+18, y:player.y, s:10 });
+
+  touchLeft = x < half;
+  touchRight = x >= half;
+},{passive:false});
+
+canvas.addEventListener("touchend", () => {
+  touchLeft = false;
+  touchRight = false;
 });
 
 function restart() {
@@ -173,16 +201,15 @@ function restart() {
   scoreEl.textContent = score;
 }
 
-function spawnEnemy() {
-  enemies.push({
-    x: Math.random()*360,
-    y: -40,
-    s: 0.8   // 🔥 BYLO 1.5 → ZPOMALENO
-  });
+function spawn() {
+  enemies.push({ x:Math.random()*360, y:-40, s:1 });
 }
 
 function update() {
   if (gameOver) return;
+
+  if ((keys["a"] || touchLeft) && player.x>0) player.x -= player.s;
+  if ((keys["d"] || touchRight) && player.x<360) player.x += player.s;
 
   bullets.forEach(b=>b.y-=b.s);
   bullets = bullets.filter(b=>b.y>-10);
@@ -190,12 +217,17 @@ function update() {
   enemies.forEach(e=>e.y+=e.s);
 
   timer++;
-  if (timer > 180) { // 🔥 pomalejší spawn
-    spawnEnemy();
-    timer = 0;
-  }
+  if (timer>180){ spawn(); timer=0; }
 
   enemies.forEach((e,ei)=>{
+    if (
+      e.x<player.x+40 && e.x+40>player.x &&
+      e.y<player.y+40 && e.y+40>player.y
+    ){
+      enemies.splice(ei,1);
+      lives--;
+    }
+
     bullets.forEach((b,bi)=>{
       if (
         b.x<e.x+40 && b.x+4>e.x &&
@@ -204,19 +236,19 @@ function update() {
         enemies.splice(ei,1);
         bullets.splice(bi,1);
         score++;
-        scoreEl.textContent = score;
+        scoreEl.textContent=score;
       }
     });
 
-    if (e.y > 600){
+    if (e.y>600){
       enemies.splice(ei,1);
       lives--;
     }
   });
 
-  if (lives <= 0){
-    gameOver = true;
-    saveScore(score);
+  if (lives<=0){
+    gameOver=true;
+    saveGlobalScore(username, score);
   }
 }
 
@@ -246,7 +278,7 @@ function draw() {
     ctx.font="28px Arial";
     ctx.fillText("GAME OVER",200,250);
     ctx.font="16px Arial";
-    ctx.fillText("Klik pro restart",200,300);
+    ctx.fillText("Tap / klik pro restart",200,300);
   }
 }
 
