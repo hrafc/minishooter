@@ -90,14 +90,19 @@ button {
 </div>
 
 <script>
-/* ===== AUTH ===== */
+/* ===== AUTH – OPRAVENÉ TLAČÍTKO ===== */
 const loginBtn = document.getElementById("loginBtn");
 const authStatus = document.getElementById("authStatus");
 const provider = new firebase.auth.GoogleAuthProvider();
 
-loginBtn.onclick = () => {
-  auth.signInWithRedirect(provider);
-};
+loginBtn.addEventListener("click", () => {
+  // 1️⃣ zkus popup
+  auth.signInWithPopup(provider).catch(err => {
+    console.warn("Popup selhal, jedu redirect", err);
+    // 2️⃣ fallback na redirect
+    auth.signInWithRedirect(provider);
+  });
+});
 
 auth.onAuthStateChanged(user => {
   if (user) {
@@ -122,18 +127,20 @@ function saveScore(score) {
   });
 }
 
-db.ref("leaderboard").orderByChild("score").limitToLast(10)
-.on("value", snap => {
-  const lb = document.getElementById("leaderboard");
-  lb.innerHTML = "";
-  if (!snap.exists()) return;
+db.ref("leaderboard")
+  .orderByChild("score")
+  .limitToLast(10)
+  .on("value", snap => {
+    const lb = document.getElementById("leaderboard");
+    lb.innerHTML = "";
+    if (!snap.exists()) return;
 
-  Object.values(snap.val())
-    .sort((a,b)=>b.score-a.score)
-    .forEach((p,i)=>{
-      lb.innerHTML += `<div>${i+1}. ${p.name} (${p.score})</div>`;
-    });
-});
+    Object.values(snap.val())
+      .sort((a,b)=>b.score-a.score)
+      .forEach((p,i)=>{
+        lb.innerHTML += `<div>${i+1}. ${p.name} (${p.score})</div>`;
+      });
+  });
 
 /* ===== HRA ===== */
 const canvas = document.getElementById("game");
@@ -168,7 +175,13 @@ function restart() {
 }
 
 function spawnEnemy() {
-  enemies.push({ x:Math.random()*360, y:-40, s:2, w:40, h:40 });
+  enemies.push({
+    x: Math.random()*360,
+    y: -40,
+    w: 40,
+    h: 40,
+    s: 1   // 👈 ZPOMALENO (bylo 2–3)
+  });
 }
 
 function update() {
@@ -183,10 +196,10 @@ function update() {
   enemies.forEach(e=>e.y+=e.s);
 
   timer++;
-  if (timer>90){ spawnEnemy(); timer=0; }
+  if (timer>150){ spawnEnemy(); timer=0; } // 👈 méně často
 
   enemies.forEach((e,ei)=>{
-    // 🟥 KOLIZE S HRÁČEM
+    // kolize s hráčem
     if (
       e.x < player.x + player.w &&
       e.x + e.w > player.x &&
@@ -197,7 +210,6 @@ function update() {
       lives--;
     }
 
-    // 🔫 STŘELA
     bullets.forEach((b,bi)=>{
       if (
         b.x < e.x + e.w &&
@@ -236,11 +248,11 @@ function draw() {
   ctx.fillStyle="red";
   enemies.forEach(e=>ctx.fillRect(e.x,e.y,e.w,e.h));
 
-  // ❤️ ŽIVOTY
+  // ❤️ životy
   ctx.fillStyle="white";
   ctx.textAlign="right";
   ctx.font="16px Arial";
-  ctx.fillText(`❤️ ${lives}/20`, 390, 20);
+  ctx.fillText(`❤️ ${lives}/20`,390,20);
 
   if (gameOver) {
     ctx.fillStyle="rgba(0,0,0,0.7)";
