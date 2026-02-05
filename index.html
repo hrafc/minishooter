@@ -5,6 +5,7 @@
 <title>Mini Shooter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
+<!-- 🔥 FIREBASE SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -81,12 +82,14 @@ td {
 
 <div class="wrapper">
 
+  <!-- 🎮 HRA -->
   <div>
     <canvas id="game" width="400" height="600"></canvas>
     <p>A / D nebo 📱 dotyk • klik / tap = střelba</p>
     <p>Skóre: <span id="score">0</span></p>
   </div>
 
+  <!-- 🏆 LEADERBOARD -->
   <div class="panel">
     <h2>🏆 Global Leaderboard</h2>
     <button id="loginBtn" onclick="login()">Přihlásit se</button>
@@ -97,27 +100,34 @@ td {
 </div>
 
 <script>
-/* ===== LEADERBOARD ===== */
-let username = localStorage.getItem("ms_name") || "";
+/* ===== LEADERBOARD / LOGIN ===== */
 const leaderboardEl = document.getElementById("leaderboard");
 const playerNameEl = document.getElementById("playerName");
 const loginBtn = document.getElementById("loginBtn");
 
+let username = localStorage.getItem("ms_name");
+
+function updateLoginUI() {
+  if (username && username.trim() !== "") {
+    playerNameEl.textContent = "Přihlášeno";
+    loginBtn.style.display = "none";
+  } else {
+    playerNameEl.textContent = "";
+    loginBtn.style.display = "block";
+    username = "";
+  }
+}
+
 function login() {
   const name = prompt("Zadej své jméno:");
-  if (!name) return;
+  if (!name || name.trim() === "") return;
 
-  username = name;
-  localStorage.setItem("ms_name", name);
-
-  playerNameEl.textContent = "Přihlášeno";
-  loginBtn.style.display = "none";
+  username = name.trim();
+  localStorage.setItem("ms_name", username);
+  updateLoginUI();
 }
 
-if (username) {
-  playerNameEl.textContent = "Přihlášeno";
-  loginBtn.style.display = "none";
-}
+updateLoginUI();
 
 function saveGlobalScore(name, score) {
   if (!name) return;
@@ -135,6 +145,7 @@ function loadGlobalLeaderboard() {
     .on("value", snap => {
       leaderboardEl.innerHTML = "";
       if (!snap.val()) return;
+
       Object.values(snap.val())
         .sort((a,b)=>b.score-a.score)
         .forEach((p,i)=>{
@@ -145,7 +156,7 @@ function loadGlobalLeaderboard() {
 }
 loadGlobalLeaderboard();
 
-/* ===== HRA – BEZE ZMĚN ===== */
+/* ===== HRA (BEZE ZMĚN) ===== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
