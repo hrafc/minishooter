@@ -34,7 +34,6 @@ body {
   font-family: Arial, sans-serif;
   text-align: center;
 }
-
 .wrapper {
   display: flex;
   justify-content: center;
@@ -42,20 +41,16 @@ body {
   margin-top: 20px;
   flex-wrap: wrap;
 }
-
 canvas {
   background: black;
   border: 2px solid white;
-  touch-action: none;
 }
-
 .panel {
   width: 260px;
   background: #000;
   border: 2px solid red;
   padding: 10px;
 }
-
 button {
   width: 100%;
   padding: 6px;
@@ -64,16 +59,12 @@ button {
   border: 1px solid white;
   cursor: pointer;
 }
-
 table {
   width: 100%;
   margin-top: 10px;
-  border-collapse: collapse;
 }
-
 td {
   padding: 4px;
-  text-align: left;
 }
 </style>
 </head>
@@ -83,7 +74,6 @@ td {
 <h1>🔫 Mini Shooter</h1>
 
 <div class="wrapper">
-
   <div>
     <canvas id="game" width="400" height="600"></canvas>
     <p>A / D nebo 📱 dotyk • klik / tap = střelba</p>
@@ -96,7 +86,6 @@ td {
     <p id="playerName">Nepřihlášen</p>
     <table id="leaderboard"></table>
   </div>
-
 </div>
 
 <script>
@@ -111,9 +100,7 @@ function login() {
 
 auth.onAuthStateChanged(u => {
   user = u;
-  playerNameEl.textContent = u
-    ? "Přihlášen: " + u.displayName
-    : "Nepřihlášen";
+  playerNameEl.textContent = u ? "Přihlášen: " + u.displayName : "Nepřihlášen";
 });
 
 /* ===== LEADERBOARD ===== */
@@ -121,158 +108,82 @@ const leaderboardEl = document.getElementById("leaderboard");
 
 function saveGlobalScore(score) {
   if (!user) return;
-
   const ref = db.ref("leaderboard/" + user.uid);
   ref.get().then(snap => {
     if (!snap.exists() || score > snap.val().score) {
-      ref.set({
-        name: user.displayName,
-        score: score
-      });
+      ref.set({ name: user.displayName, score });
     }
   });
 }
 
-function loadGlobalLeaderboard() {
-  db.ref("leaderboard")
-    .orderByChild("score")
-    .limitToLast(10)
-    .on("value", snap => {
-      leaderboardEl.innerHTML = "";
-      if (!snap.val()) return;
-
-      Object.values(snap.val())
-        .sort((a, b) => b.score - a.score)
-        .forEach((p, i) => {
-          leaderboardEl.innerHTML +=
-            `<tr><td>${i + 1}. ${p.name} (${p.score})</td></tr>`;
-        });
+db.ref("leaderboard").on("value", snap => {
+  leaderboardEl.innerHTML = "";
+  if (!snap.val()) return;
+  Object.values(snap.val())
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,10)
+    .forEach((p,i)=>{
+      leaderboardEl.innerHTML += `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
     });
-}
-loadGlobalLeaderboard();
+});
 
 /* ===== HRA ===== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
 
-let score = 0;
-let lives = 20;
-let gameOver = false;
+let score = 0, lives = 20, gameOver = false;
+const player = { x:180, y:520, s:8 };
+let bullets = [], enemies = [], keys = {}, timer = 0;
 
-const player = { x: 180, y: 520, s: 8 };
-let bullets = [];
-let enemies = [];
-let keys = {};
-let timer = 0;
-let touchLeft = false, touchRight = false;
+document.addEventListener("keydown", e=>keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e=>keys[e.key.toLowerCase()] = false);
 
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
-canvas.addEventListener("mousedown", () => {
-  gameOver ? restart() : bullets.push({ x: player.x + 18, y: player.y });
+canvas.addEventListener("mousedown", ()=>{
+  gameOver ? restart() : bullets.push({x:player.x+18,y:player.y});
 });
 
-canvas.addEventListener("touchstart", e => {
-  e.preventDefault();
-  const x = e.touches[0].clientX;
-  x < window.innerWidth / 2 ? touchLeft = true : touchRight = true;
-  gameOver ? restart() : bullets.push({ x: player.x + 18, y: player.y });
-}, { passive: false });
-
-canvas.addEventListener("touchend", () => touchLeft = touchRight = false);
-
-function restart() {
-  score = 0;
-  lives = 20;
-  gameOver = false;
-  bullets = [];
-  enemies = [];
-  scoreEl.textContent = 0;
+function restart(){
+  score=0; lives=20; gameOver=false;
+  bullets=[]; enemies=[];
+  scoreEl.textContent=0;
 }
 
-function spawn() {
-  enemies.push({ x: Math.random() * 360, y: -40 });
-}
+function spawn(){ enemies.push({x:Math.random()*360,y:-40}); }
 
-function update() {
-  if (gameOver) return;
+function update(){
+  if(gameOver) return;
+  if(keys.a&&player.x>0) player.x-=player.s;
+  if(keys.d&&player.x<360) player.x+=player.s;
 
-  if ((keys.a || touchLeft) && player.x > 0) player.x -= player.s;
-  if ((keys.d || touchRight) && player.x < 360) player.x += player.s;
+  bullets.forEach(b=>b.y-=10);
+  bullets=bullets.filter(b=>b.y>-10);
 
-  bullets.forEach(b => b.y -= 10);
-  bullets = bullets.filter(b => b.y > -10);
+  enemies.forEach(e=>e.y+=1);
+  if(++timer>180){spawn();timer=0;}
 
-  enemies.forEach(e => e.y += 1);
-
-  if (++timer > 180) { spawn(); timer = 0; }
-
-  enemies.forEach((e, ei) => {
-    if (e.y > 600) { enemies.splice(ei, 1); lives--; }
-
-    bullets.forEach((b, bi) => {
-      if (
-        b.x < e.x + 40 && b.x + 4 > e.x &&
-        b.y < e.y + 40 && b.y + 10 > e.y
-      ) {
-        enemies.splice(ei, 1);
-        bullets.splice(bi, 1);
-        score++;
-        scoreEl.textContent = score;
+  enemies.forEach((e,ei)=>{
+    bullets.forEach((b,bi)=>{
+      if(b.x<e.x+40&&b.x+4>e.x&&b.y<e.y+40&&b.y+10>e.y){
+        enemies.splice(ei,1);
+        bullets.splice(bi,1);
+        score++; scoreEl.textContent=score;
       }
     });
-
-    if (
-      e.x < player.x + 40 && e.x + 40 > player.x &&
-      e.y < player.y + 40 && e.y + 40 > player.y
-    ) {
-      enemies.splice(ei, 1);
-      lives--;
-    }
+    if(e.y>600){enemies.splice(ei,1);lives--;}
   });
 
-  if (lives <= 0) {
-    gameOver = true;
-    saveGlobalScore(score);
-  }
+  if(lives<=0){gameOver=true; saveGlobalScore(score);}
 }
 
-function draw() {
-  ctx.clearRect(0, 0, 400, 600);
-
-  ctx.fillStyle = "lime";
-  ctx.fillRect(player.x, player.y, 40, 40);
-
-  ctx.fillStyle = "yellow";
-  bullets.forEach(b => ctx.fillRect(b.x, b.y, 4, 10));
-
-  ctx.fillStyle = "red";
-  enemies.forEach(e => ctx.fillRect(e.x, e.y, 40, 40));
-
-  ctx.fillStyle = "white";
-  ctx.fillText("❤️ " + lives + "/20", 320, 20);
-
-  if (gameOver) {
-    ctx.fillStyle = "rgba(0,0,0,.7)";
-    ctx.fillRect(60, 200, 280, 200);
-    ctx.strokeStyle = "white";
-    ctx.strokeRect(60, 200, 280, 200);
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.font = "28px Arial";
-    ctx.fillText("GAME OVER", 200, 260);
-    ctx.font = "16px Arial";
-    ctx.fillText("Klik / tap pro restart", 200, 300);
-  }
+function draw(){
+  ctx.clearRect(0,0,400,600);
+  ctx.fillStyle="lime"; ctx.fillRect(player.x,player.y,40,40);
+  ctx.fillStyle="yellow"; bullets.forEach(b=>ctx.fillRect(b.x,b.y,4,10));
+  ctx.fillStyle="red"; enemies.forEach(e=>ctx.fillRect(e.x,e.y,40,40));
 }
 
-(function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-})();
+(function loop(){update();draw();requestAnimationFrame(loop);})();
 </script>
 
 </body>
