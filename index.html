@@ -3,176 +3,291 @@
 <head>
 <meta charset="UTF-8">
 <title>Mini Shooter</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<!-- Firebase SDK -->
+<!-- 🔥 FIREBASE SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
+<!-- 🔥 FIREBASE CONFIG -->
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyC1FhFMFEFChjENC3gp8fPM-06jKSn86w",
+  authDomain: "minishooter.firebaseapp.com",
+  databaseURL: "https://minishooter-default-rtdb.firebaseio.com",
+  projectId: "minishooter",
+  storageBucket: "minishooter.appspot.com",
+  messagingSenderId: "363773533175",
+  appId: "1:363773533175:web:d41377d66730ff7ca2ecf2"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+</script>
+
 <style>
-  body {
-    margin: 0;
-    background: #111;
-    color: white;
-    font-family: Arial, sans-serif;
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    padding: 20px;
-  }
+body {
+  margin: 0;
+  background: #111;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
 
-  canvas {
-    background: black;
-    border: 2px solid white;
-  }
+.wrapper {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
 
-  .panel {
-    width: 260px;
-    border: 2px solid red;
-    padding: 10px;
-  }
+canvas {
+  background: black;
+  border: 2px solid white;
+  touch-action: none;
+}
 
-  button {
-    width: 100%;
-    padding: 8px;
-    margin-top: 5px;
-    background: #222;
-    color: white;
-    border: 1px solid white;
-    cursor: pointer;
-  }
+.panel {
+  width: 260px;
+  background: #000;
+  border: 2px solid red;
+  padding: 10px;
+}
 
-  button:hover {
-    background: #333;
-  }
+button {
+  width: 100%;
+  padding: 6px;
+  background: #222;
+  color: white;
+  border: 1px solid white;
+  cursor: pointer;
+}
 
-  .hidden {
-    display: none;
-  }
+table {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+}
+
+td {
+  padding: 4px;
+  text-align: left;
+}
 </style>
 </head>
 
 <body>
 
-<!-- HRA -->
-<canvas id="game" width="300" height="500"></canvas>
+<h1>🔫 Mini Shooter</h1>
 
-<!-- LEADERBOARD -->
-<div class="panel">
-  <h2>🏆 Global Leaderboard</h2>
+<div class="wrapper">
 
-  <button id="loginBtn">Přihlásit se přes Google</button>
-  <button id="logoutBtn" class="hidden">Odhlásit</button>
+  <!-- 🎮 HRA -->
+  <div>
+    <canvas id="game" width="400" height="600"></canvas>
+    <p>A / D nebo 📱 dotyk • klik / tap = střelba</p>
+    <p>Skóre: <span id="score">0</span></p>
+  </div>
 
-  <div id="userInfo">Nepřihlášen</div>
-  <hr>
-  <ol id="leaderboard"></ol>
+  <!-- 🏆 LEADERBOARD -->
+  <div class="panel">
+    <h2>🏆 Global Leaderboard</h2>
+    <button onclick="login()">Přihlásit se</button>
+    <p id="playerName"></p>
+    <table id="leaderboard"></table>
+  </div>
+
 </div>
 
 <script>
-/* ================= FIREBASE ================= */
-
-const firebaseConfig = {
-  apiKey: "PASTE_TVŮJ_API_KEY",
-  authDomain: "minishooter.firebaseapp.com",
-  databaseURL: "https://minishooter-default-rtdb.firebaseio.com",
-  projectId: "minishooter",
-  storageBucket: "minishooter.appspot.com",
-  messagingSenderId: "XXXX",
-  appId: "XXXX"
-};
-
-firebase.initializeApp(firebaseConfig);
-
-const auth = firebase.auth();
-const db = firebase.database();
-const provider = new firebase.auth.GoogleAuthProvider();
-
-/* ================= UI ================= */
-
-const loginBtn = document.getElementById("loginBtn");
-const logoutBtn = document.getElementById("logoutBtn");
-const userInfo = document.getElementById("userInfo");
+/* ===== LEADERBOARD ===== */
+let username = localStorage.getItem("ms_name") || "";
 const leaderboardEl = document.getElementById("leaderboard");
+const playerNameEl = document.getElementById("playerName");
 
-let currentUser = null;
+function login() {
+  const name = prompt("Zadej své jméno:");
+  if (!name) return;
+  username = name;
+  localStorage.setItem("ms_name", name);
+  playerNameEl.textContent = "Přihlášen: " + name;
+}
 
-loginBtn.onclick = () => auth.signInWithPopup(provider);
-logoutBtn.onclick = () => auth.signOut();
+if (username) {
+  playerNameEl.textContent = "Přihlášen: " + username;
+}
 
-/* 🔑 TADY SE ŘEŠÍ REGISTRACE JEN JEDNOU */
-auth.onAuthStateChanged(user => {
-  if (user) {
-    currentUser = user;
-    loginBtn.classList.add("hidden");
-    logoutBtn.classList.remove("hidden");
-    userInfo.textContent = "Přihlášen: " + user.displayName;
-  } else {
-    currentUser = null;
-    loginBtn.classList.remove("hidden");
-    logoutBtn.classList.add("hidden");
-    userInfo.textContent = "Nepřihlášen";
-  }
-});
-
-/* ================= LEADERBOARD ================= */
-
-function saveScore(score) {
-  if (!currentUser) return;
-
-  const ref = db.ref("leaderboard/" + currentUser.uid);
-
-  ref.get().then(snap => {
-    const old = snap.val();
-    if (!old || score > old.score) {
-      ref.set({
-        name: currentUser.displayName,
-        score: score
-      });
-    }
+function saveGlobalScore(name, score) {
+  if (!name) return;
+  db.ref("leaderboard").push({
+    name,
+    score,
+    time: Date.now()
   });
 }
 
-db.ref("leaderboard")
-  .orderByChild("score")
-  .limitToLast(10)
-  .on("value", snap => {
-    leaderboardEl.innerHTML = "";
-    const data = [];
-    snap.forEach(s => data.push(s.val()));
-    data.reverse().forEach(p => {
-      const li = document.createElement("li");
-      li.textContent = `${p.name} (${p.score})`;
-      leaderboardEl.appendChild(li);
+function loadGlobalLeaderboard() {
+  db.ref("leaderboard")
+    .orderByChild("score")
+    .limitToLast(10)
+    .on("value", snap => {
+      leaderboardEl.innerHTML = "";
+      if (!snap.val()) return;
+      Object.values(snap.val())
+        .sort((a,b)=>b.score-a.score)
+        .forEach((p,i)=>{
+          leaderboardEl.innerHTML +=
+            `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
+        });
     });
-  });
+}
+loadGlobalLeaderboard();
 
-/* ================= HRA (MINIMUM DEMO) ================= */
-
+/* ===== HRA ===== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
 
-let x = 140;
 let score = 0;
+let lives = 20;
+let gameOver = false;
 
-function draw() {
-  ctx.clearRect(0,0,300,500);
-  ctx.fillStyle = "lime";
-  ctx.fillRect(x,460,20,20);
-  requestAnimationFrame(draw);
+const player = { x:180, y:520, w:40, h:40, s:8 };
+let bullets = [];
+let enemies = [];
+let keys = {};
+let timer = 0;
+
+// 📱 TOUCH
+let touchLeft = false;
+let touchRight = false;
+
+// ⌨️ KLÁVESNICE
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+// 🖱️ MYŠ
+canvas.addEventListener("mousedown", e => {
+  if (gameOver) restart();
+  else if (e.button === 0)
+    bullets.push({ x:player.x+18, y:player.y, s:10 });
+});
+
+// 📱 DOTYK
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault();
+  const x = e.touches[0].clientX;
+  const half = window.innerWidth / 2;
+
+  if (gameOver) restart();
+  else bullets.push({ x:player.x+18, y:player.y, s:10 });
+
+  touchLeft = x < half;
+  touchRight = x >= half;
+},{passive:false});
+
+canvas.addEventListener("touchend", () => {
+  touchLeft = false;
+  touchRight = false;
+});
+
+function restart() {
+  score = 0;
+  lives = 20;
+  bullets = [];
+  enemies = [];
+  gameOver = false;
+  scoreEl.textContent = score;
 }
 
-document.addEventListener("keydown", e => {
-  if (e.key === "a") x -= 10;
-  if (e.key === "d") x += 10;
-});
+function spawn() {
+  enemies.push({ x:Math.random()*360, y:-40, s:1 });
+}
 
-canvas.addEventListener("click", () => {
-  score++;
-  if (score % 5 === 0) saveScore(score);
-});
+function update() {
+  if (gameOver) return;
 
-draw();
+  if ((keys["a"] || touchLeft) && player.x>0) player.x -= player.s;
+  if ((keys["d"] || touchRight) && player.x<360) player.x += player.s;
+
+  bullets.forEach(b=>b.y-=b.s);
+  bullets = bullets.filter(b=>b.y>-10);
+
+  enemies.forEach(e=>e.y+=e.s);
+
+  timer++;
+  if (timer>180){ spawn(); timer=0; }
+
+  enemies.forEach((e,ei)=>{
+    if (
+      e.x<player.x+40 && e.x+40>player.x &&
+      e.y<player.y+40 && e.y+40>player.y
+    ){
+      enemies.splice(ei,1);
+      lives--;
+    }
+
+    bullets.forEach((b,bi)=>{
+      if (
+        b.x<e.x+40 && b.x+4>e.x &&
+        b.y<e.y+40 && b.y+10>e.y
+      ){
+        enemies.splice(ei,1);
+        bullets.splice(bi,1);
+        score++;
+        scoreEl.textContent=score;
+      }
+    });
+
+    if (e.y>600){
+      enemies.splice(ei,1);
+      lives--;
+    }
+  });
+
+  if (lives<=0){
+    gameOver=true;
+    saveGlobalScore(username, score);
+  }
+}
+
+function draw() {
+  ctx.clearRect(0,0,400,600);
+
+  ctx.fillStyle="lime";
+  ctx.fillRect(player.x,player.y,40,40);
+
+  ctx.fillStyle="yellow";
+  bullets.forEach(b=>ctx.fillRect(b.x,b.y,4,10));
+
+  ctx.fillStyle="red";
+  enemies.forEach(e=>ctx.fillRect(e.x,e.y,40,40));
+
+  ctx.fillStyle="white";
+  ctx.textAlign="right";
+  ctx.fillText(`❤️ ${lives}/20`,390,20);
+
+  if (gameOver){
+    ctx.fillStyle="rgba(0,0,0,.7)";
+    ctx.fillRect(60,200,280,200);
+    ctx.strokeStyle="white";
+    ctx.strokeRect(60,200,280,200);
+    ctx.fillStyle="white";
+    ctx.textAlign="center";
+    ctx.font="28px Arial";
+    ctx.fillText("GAME OVER",200,250);
+    ctx.font="16px Arial";
+    ctx.fillText("Tap / klik pro restart",200,300);
+  }
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
 </script>
 
 </body>
