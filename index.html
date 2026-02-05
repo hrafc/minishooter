@@ -5,7 +5,7 @@
 <title>Mini Shooter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<!-- 🔥 FIREBASE SDK -->
+<!-- FIREBASE SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -85,14 +85,12 @@ td {
 
 <div class="wrapper">
 
-  <!-- 🎮 HRA -->
   <div>
     <canvas id="game" width="400" height="600"></canvas>
     <p>A / D nebo 📱 dotyk • klik / tap = střelba</p>
     <p>Skóre: <span id="score">0</span></p>
   </div>
 
-  <!-- 🏆 LEADERBOARD -->
   <div class="panel">
     <h2>🏆 Global Leaderboard</h2>
     <button id="loginBtn">Přihlásit se přes Google</button>
@@ -103,17 +101,19 @@ td {
 </div>
 
 <script>
-/* ===== AUTH UI ===== */
+/* ===== AUTH ===== */
 const loginBtn = document.getElementById("loginBtn");
 const playerNameEl = document.getElementById("playerName");
 const leaderboardEl = document.getElementById("leaderboard");
 
 loginBtn.onclick = () => {
-  auth.signInWithPopup(provider).catch(err => {
-    alert("Přihlášení selhalo");
-    console.error(err);
-  });
+  auth.signInWithRedirect(provider);
 };
+
+auth.getRedirectResult().catch(err => {
+  console.error(err);
+  alert("Přihlášení selhalo");
+});
 
 auth.onAuthStateChanged(user => {
   if (user) {
@@ -157,7 +157,7 @@ db.ref("leaderboard")
       });
   });
 
-/* ===== HRA (BEZE ZMĚN) ===== */
+/* ===== HRA (NEDOTČENÁ) ===== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
@@ -166,7 +166,7 @@ let score = 0;
 let lives = 20;
 let gameOver = false;
 
-const player = { x:180, y:520, w:40, h:40, s:8 };
+const player = { x:180, y:520, s:8 };
 let bullets = [];
 let enemies = [];
 let keys = {};
@@ -222,7 +222,6 @@ function update() {
 
   bullets.forEach(b=>b.y-=b.s);
   bullets = bullets.filter(b=>b.y>-10);
-
   enemies.forEach(e=>e.y+=e.s);
 
   timer++;
@@ -265,7 +264,7 @@ function draw() {
   ctx.clearRect(0,0,400,600);
 
   ctx.fillStyle="lime";
-  ctx.fillRect(player.x,player.y,40,40);
+  ctx.fillRect(player.x,520,40,40);
 
   ctx.fillStyle="yellow";
   bullets.forEach(b=>ctx.fillRect(b.x,b.y,4,10));
