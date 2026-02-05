@@ -5,7 +5,7 @@
 <title>Mini Shooter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<!-- 🔥 FIREBASE SDK -->
+<!-- FIREBASE SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -84,14 +84,14 @@ td {
 
 <div class="wrapper">
 
-  <!-- 🎮 HRA -->
+  <!-- HRA -->
   <div>
     <canvas id="game" width="400" height="600"></canvas>
     <p>A / D nebo 📱 dotyk • klik / tap = střelba</p>
     <p>Skóre: <span id="score">0</span></p>
   </div>
 
-  <!-- 🏆 LEADERBOARD -->
+  <!-- LEADERBOARD -->
   <div class="panel">
     <h2>🏆 Global Leaderboard</h2>
     <button id="loginBtn">Přihlásit se přes Google</button>
@@ -107,12 +107,9 @@ const provider = new firebase.auth.GoogleAuthProvider();
 const loginBtn = document.getElementById("loginBtn");
 const authStatus = document.getElementById("authStatus");
 
-loginBtn.onclick = () => {
-  auth.signInWithRedirect(provider);.catch(err => {
-    alert("Přihlášení selhalo");
-    console.error(err);
-  });
-};
+loginBtn.addEventListener("click", () => {
+  auth.signInWithRedirect(provider);
+});
 
 auth.onAuthStateChanged(user => {
   if (user) {
@@ -131,36 +128,35 @@ function saveGlobalScore(score) {
   const user = auth.currentUser;
   if (!user) return;
 
-  const uid = user.uid;
-
-  db.ref("leaderboard/" + uid).transaction(current => {
-    if (!current || score > current.score) {
-      return {
+  const ref = db.ref("leaderboard/" + user.uid);
+  ref.get().then(snap => {
+    const data = snap.val();
+    if (!data || score > data.score) {
+      ref.set({
         name: user.displayName,
         score: score
-      };
+      });
     }
-    return current;
   });
 }
 
-function loadGlobalLeaderboard() {
+function loadLeaderboard() {
   db.ref("leaderboard")
     .orderByChild("score")
     .limitToLast(10)
     .on("value", snap => {
       leaderboardEl.innerHTML = "";
-      if (!snap.val()) return;
+      if (!snap.exists()) return;
 
       Object.values(snap.val())
-        .sort((a,b)=>b.score-a.score)
-        .forEach((p,i)=>{
+        .sort((a,b) => b.score - a.score)
+        .forEach((p,i) => {
           leaderboardEl.innerHTML +=
             `<tr><td>${i+1}. ${p.name} (${p.score})</td></tr>`;
         });
     });
 }
-loadGlobalLeaderboard();
+loadLeaderboard();
 
 /* ===== HRA ===== */
 const canvas = document.getElementById("game");
@@ -171,38 +167,18 @@ let score = 0;
 let lives = 20;
 let gameOver = false;
 
-const player = { x:180, y:520, w:40, h:40, s:8 };
+const player = { x:180, y:520, s:8 };
 let bullets = [];
 let enemies = [];
 let keys = {};
 let timer = 0;
 
-let touchLeft = false;
-let touchRight = false;
-
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-canvas.addEventListener("mousedown", e => {
+canvas.addEventListener("mousedown", () => {
   if (gameOver) restart();
   else bullets.push({ x:player.x+18, y:player.y, s:10 });
-});
-
-canvas.addEventListener("touchstart", e => {
-  e.preventDefault();
-  const x = e.touches[0].clientX;
-  const half = window.innerWidth / 2;
-
-  if (gameOver) restart();
-  else bullets.push({ x:player.x+18, y:player.y, s:10 });
-
-  touchLeft = x < half;
-  touchRight = x >= half;
-},{passive:false});
-
-canvas.addEventListener("touchend", () => {
-  touchLeft = false;
-  touchRight = false;
 });
 
 function restart() {
@@ -221,81 +197,50 @@ function spawn() {
 function update() {
   if (gameOver) return;
 
-  if ((keys["a"] || touchLeft) && player.x>0) player.x -= player.s;
-  if ((keys["d"] || touchRight) && player.x<360) player.x += player.s;
+  if (keys["a"] && player.x>0) player.x -= player.s;
+  if (keys["d"] && player.x<360) player.x += player.s;
 
-  bullets.forEach(b=>b.y-=b.s);
-  bullets = bullets.filter(b=>b.y>-10);
+  bullets.forEach(b => b.y -= b.s);
+  bullets = bullets.filter(b => b.y > -10);
 
-  enemies.forEach(e=>e.y+=e.s);
+  enemies.forEach(e => e.y += e.s);
 
   timer++;
-  if (timer>180){ spawn(); timer=0; }
+  if (timer > 180) { spawn(); timer = 0; }
 
-  enemies.forEach((e,ei)=>{
-    if (
-      e.x<player.x+40 && e.x+40>player.x &&
-      e.y<player.y+40 && e.y+40>player.y
-    ){
-      enemies.splice(ei,1);
-      lives--;
-    }
-
-    bullets.forEach((b,bi)=>{
-      if (
-        b.x<e.x+40 && b.x+4>e.x &&
-        b.y<e.y+40 && b.y+10>e.y
-      ){
+  enemies.forEach((e,ei) => {
+    bullets.forEach((b,bi) => {
+      if (b.x<e.x+40 && b.x+4>e.x && b.y<e.y+40 && b.y+10>e.y) {
         enemies.splice(ei,1);
         bullets.splice(bi,1);
         score++;
-        scoreEl.textContent=score;
+        scoreEl.textContent = score;
       }
     });
 
-    if (e.y>600){
+    if (e.y > 600) {
       enemies.splice(ei,1);
       lives--;
     }
   });
 
-  if (lives<=0){
-    gameOver=true;
+  if (lives <= 0) {
+    gameOver = true;
     saveGlobalScore(score);
   }
 }
 
 function draw() {
   ctx.clearRect(0,0,400,600);
-
   ctx.fillStyle="lime";
-  ctx.fillRect(player.x,player.y,40,40);
-
+  ctx.fillRect(player.x,520,40,40);
   ctx.fillStyle="yellow";
-  bullets.forEach(b=>ctx.fillRect(b.x,b.y,4,10));
-
+  bullets.forEach(b => ctx.fillRect(b.x,b.y,4,10));
   ctx.fillStyle="red";
-  enemies.forEach(e=>ctx.fillRect(e.x,e.y,40,40));
-
-  ctx.fillStyle="white";
-  ctx.textAlign="right";
-  ctx.fillText(`❤️ ${lives}/20`,390,20);
-
-  if (gameOver){
-    ctx.fillStyle="rgba(0,0,0,.7)";
-    ctx.fillRect(60,200,280,200);
-    ctx.strokeStyle="white";
-    ctx.strokeRect(60,200,280,200);
-    ctx.fillStyle="white";
-    ctx.textAlign="center";
-    ctx.font="28px Arial";
-    ctx.fillText("GAME OVER",200,250);
-    ctx.font="16px Arial";
-    ctx.fillText("Tap / klik pro restart",200,300);
-  }
+  enemies.forEach(e => ctx.fillRect(e.x,e.y,40,40));
 }
 
-function loop(){
+function loop() {
   update();
   draw();
   requestAnimationFrame(loop);
@@ -305,4 +250,3 @@ loop();
 
 </body>
 </html>
-
